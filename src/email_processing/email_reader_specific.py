@@ -1,12 +1,13 @@
 import sys
 import os
 import base64
-import whisper
-import pyttsx3
-import speech_recognition as sr
 from googleapiclient.discovery import build
+import keyboard
 from email.mime.text import MIMEText
 from bs4 import BeautifulSoup  # ✅ To clean HTML email content
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+from src.speech_processing.voice_assistant import VoiceAssistant  # ✅ Import VoiceAssistant
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from src.utils.gmail_auth import authenticate_gmail  # ✅ Import authentication function
@@ -15,33 +16,7 @@ class EmailReaderSpecific:
     def __init__(self):
         """Initialize Gmail API service and voice assistant."""
         self.service = build("gmail", "v1", credentials=authenticate_gmail())
-
-        # ✅ Initialize Whisper for Speech-to-Text
-        self.whisper_model = whisper.load_model("small")  # Use "tiny", "base", "medium", or "large"
-        self.recognizer = sr.Recognizer()
-        self.engine = pyttsx3.init()
-
-    def speak(self, text):
-        """Convert text to speech."""
-        self.engine.say(text)
-        self.engine.runAndWait()
-
-    def listen(self):
-        """Capture voice input using Whisper for better accuracy."""
-        with sr.Microphone() as source:
-            print("🎤 Listening... Speak now.")
-            self.speak("Listening, please speak now.")
-            self.recognizer.adjust_for_ambient_noise(source)
-            audio = self.recognizer.listen(source)
-
-        # Save and transcribe using Whisper
-        with open("temp_audio.wav", "wb") as f:
-            f.write(audio.get_wav_data())
-
-        result = self.whisper_model.transcribe("temp_audio.wav")
-        command = result["text"].strip().lower()
-        print(f"🗣 You said: {command}")
-        return command
+        self.assistant = VoiceAssistant()  # ✅ Use VoiceAssistant
 
     def search_email_specific(self, query, max_result=10):
         """Search for emails based on a query."""
@@ -50,13 +25,13 @@ class EmailReaderSpecific:
             messages = response.get("messages", [])
 
             if not messages:
-                self.speak("No emails found matching your query.")
+                self.assistant.speak("No emails found matching your query.")
                 return []
 
             return [msg["id"] for msg in messages]  # Return list of email IDs
 
         except Exception as e:
-            self.speak(f"Error searching email: {str(e)}")
+            self.assistant.speak(f"Error searching email: {str(e)}")
             return []
 
     def get_email_details(self, email_id):
@@ -93,21 +68,21 @@ class EmailReaderSpecific:
             return {"subject": subject, "sender": sender, "body": body}
 
         except Exception as e:
-            self.speak(f"Error fetching email details for ID {email_id}: {str(e)}")
+            self.assistant.speak(f"Error fetching email details for ID {email_id}: {str(e)}")
             return None
 
-# ✅ MAIN FUNCTION WITH WHISPER
+# ✅ MAIN FUNCTION WITH VOICEASSISTANT
 if __name__ == "__main__":
     reader = EmailReaderSpecific()
 
-    reader.speak("What email do you want to find? Say the subject, sender, or keywords.")
-    query = reader.listen()
+    reader.assistant.speak("What email do you want to find? Say the subject, sender, or keywords.")
+    query = reader.assistant.listen()
 
     if query:
         email_ids = reader.search_email_specific(query, max_result=10)
 
         if email_ids:
-            reader.speak(f"I found {len(email_ids)} matching emails. Here are the details.")
+            reader.assistant.speak(f"I found {len(email_ids)} matching emails. Here are the details.")
             print(f"\n✅ Found {len(email_ids)} matching emails.\n")
 
             for index, email_id in enumerate(email_ids, start=1):
@@ -120,8 +95,8 @@ if __name__ == "__main__":
                     print("-" * 50)
 
                     # 🔊 Speak email details
-                    reader.speak(f"Email {index}, Subject: {email_details['subject']}, Sender: {email_details['sender']}.")
-                    reader.speak(f"Message: {email_details['body'][:200]}")  # Speak first 200 characters
+                    reader.assistant.speak(f"Email {index}, Subject: {email_details['subject']}, Sender: {email_details['sender']}.")
+                    reader.assistant.speak(f"Message: {email_details['body'][:200]}")  # Speak first 200 characters
 
         else:
-            reader.speak("No matching emails found.")
+            reader.assistant.speak("No matching emails found.")

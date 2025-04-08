@@ -2,9 +2,9 @@ import sys
 import os
 import re
 import base64
-import whisper
-import speech_recognition as sr
-import pyttsx3
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+from src.speech_processing.voice_assistant import VoiceAssistant  # ✅ Import VoiceAssistant
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from email.mime.text import MIMEText
@@ -16,30 +16,7 @@ from src.utils.gmail_auth import authenticate_gmail  # Ensure this function is i
 class GmailHelper:
     def __init__(self):
         self.service = build("gmail", "v1", credentials=authenticate_gmail())
-        self.recognizer = sr.Recognizer()
-        self.whisper_model = whisper.load_model("small")  # Change to "medium" or "large" for better accuracy
-        self.engine = pyttsx3.init()
-
-    def speak(self, text):
-        """Convert text to speech."""
-        self.engine.say(text)
-        self.engine.runAndWait()
-
-    def listen(self):
-        """Capture voice input and transcribe it using Whisper."""
-        with sr.Microphone() as source:
-            print("🎤 Listening... Speak now.")
-            self.speak("Listening, please speak now.")
-            audio = self.recognizer.listen(source)
-
-        # Save audio and transcribe with Whisper
-        with open("temp_audio.wav", "wb") as f:
-            f.write(audio.get_wav_data())
-
-        result = self.whisper_model.transcribe("temp_audio.wav")
-        command = result["text"].strip().lower()
-        print(f"🗣 You said: {command}")
-        return command
+        self.assistant = VoiceAssistant()  # ✅ Use VoiceAssistant for voice input
 
     def format_email_body(self, text):
         """Convert markdown-like formatting to HTML."""
@@ -50,7 +27,7 @@ class GmailHelper:
         text = text.replace("\n", "<br>")  # Convert new lines to <br>
         return text
 
-    def send_email(self, to_email, subject, message_body):
+    def send_gmail_email(self, to_email, subject, message_body):
         """Sends an email via Gmail API."""
         # ✅ Fix email format
         to_email = to_email.replace(" at ", "@")  # Convert 'at' to '@'
@@ -73,11 +50,11 @@ class GmailHelper:
             ).execute()
 
             print(f"✅ Email sent successfully to {to_email}. Message ID: {send_message['id']}")
-            self.speak(f"Email sent successfully to {to_email}.")
+            self.assistant.speak(f"Email sent successfully to {to_email}.")
             return send_message
         except HttpError as error:
             print(f"❌ An error occurred: {error}")
-            self.speak("An error occurred while sending the email.")
+            self.assistant.speak("An error occurred while sending the email.")
             return None
 
     def read_latest_emails(self, max_results=5):
@@ -88,7 +65,7 @@ class GmailHelper:
 
             if not messages:
                 print("📭 No emails found.")
-                self.speak("No emails found.")
+                self.assistant.speak("No emails found.")
                 return []
 
             emails = []
@@ -99,12 +76,12 @@ class GmailHelper:
 
             for idx, email in enumerate(emails, 1):
                 print(f"{idx}. {email}")
-                self.speak(f"Email {idx}: {email}")
+                self.assistant.speak(f"Email {idx}: {email}")
 
             return emails
         except HttpError as error:
             print(f"❌ An error occurred while reading emails: {error}")
-            self.speak("An error occurred while reading emails.")
+            self.assistant.speak("An error occurred while reading emails.")
             return []
 
 if __name__ == "__main__":
@@ -112,29 +89,29 @@ if __name__ == "__main__":
 
     while True:
         print("\nSay a command: 'Send email', 'Read emails', or 'Exit'.")
-        helper.speak("Say a command: Send email, Read emails, or Exit.")
-        command = helper.listen()
+        helper.assistant.speak("Say a command: Send email, Read emails, or Exit.")
+        command = helper.assistant.listen()
 
         if "send email" in command:
-            helper.speak("Who do you want to send the email to?")
-            to_email = helper.listen()
+            helper.assistant.speak("Who do you want to send the email to?")
+            to_email = helper.assistant.listen()
 
-            helper.speak("What is the subject of the email?")
-            subject = helper.listen()
+            helper.assistant.speak("What is the subject of the email?")
+            subject = helper.assistant.listen()
 
-            helper.speak("What is the message?")
-            message_body = helper.listen()
+            helper.assistant.speak("What is the message?")
+            message_body = helper.assistant.listen()
 
-            helper.send_email(to_email, subject, message_body)
+            helper.send_gmail_email(to_email, subject, message_body)
 
         elif "read emails" in command:
             helper.read_latest_emails()
 
         elif "exit" in command:
             print("👋 Exiting the program.")
-            helper.speak("Exiting the program.")
+            helper.assistant.speak("Exiting the program.")
             break
 
         else:
             print("❌ Invalid command. Please try again.")
-            helper.speak("Invalid command. Please try again.")
+            helper.assistant.speak("Invalid command. Please try again.")
