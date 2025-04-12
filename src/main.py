@@ -34,38 +34,26 @@ class VoiceDesktopAssistant:
         """Get input from either voice or keyboard with proper fallback handling."""
         self.assistant.speak("You can speak or type your command.")
         print("🎤 Speak now or type below:")
-        
 
-        input_command = [None]  # Mutable reference for keyboard input
+        input_event = threading.Event()
+        input_command = [None]
 
         def keyboard_listener():
-            """Capture keyboard input in a separate thread."""
             input_command[0] = input("⌨️ Type your command: ").strip().lower()
+            input_event.set()
 
-        # Start the keyboard input listener
-        keyboard_thread = threading.Thread(target=keyboard_listener)
+        keyboard_thread = threading.Thread(target=keyboard_listener, daemon=True)
         keyboard_thread.start()
 
-        for attempt in range(2):  # Try voice input twice before falling back to typing
-            voice_command = self.assistant.listen().strip().lower()
+        voice_command = self.assistant.listen().strip().lower()
 
-            if voice_command:  # ✅ If valid voice input is detected, return it immediately
-                keyboard_thread.join()  # Ensure keyboard thread finishes
-                return voice_command
+        if voice_command:
+            input_event.set()
+            return voice_command
 
-            self.assistant.speak("I didn't catch that. Please try again.")
+        input_event.wait(timeout=5)
+        return input_command[0] if input_command[0] else self.get_input()
 
-        # Wait for keyboard input if voice failed twice
-        keyboard_thread.join(timeout=5)
-
-        # Use keyboard input if available, otherwise retry getting input
-        final_command = input_command[0] if input_command[0] else None
-
-        if not final_command:
-            self.assistant.speak("I still didn't get that. Can you try one more time?")
-            return self.get_input()  # Retry input collection
-
-        return final_command
 
 
 
@@ -109,15 +97,18 @@ class VoiceDesktopAssistant:
     
     def process_command(self, command):
         """Process user commands and call appropriate functions with full execution logic."""
-        while True:
+        retry_count = 0
+        while retry_count < 3:
             interpreted_command = self.interpret_command(command)
+            if interpreted_command and interpreted_command != "unknown":
+                break
+            self.assistant.speak("I didn't understand. Can you rephrase?")
+            command = self.get_input()
+            retry_count += 1
 
-            if interpreted_command is None or interpreted_command == "unknown":
-                self.assistant.speak("I didn't understand. Can you rephrase?")
-                command = self.get_input()  # ✅ Get input again (voice or keyboard)
-                continue  # Restart loop with new command
-            
-            break  # ✅ Exit loop when a valid command is detected
+        if retry_count == 3:
+            self.assistant.speak("I couldn't understand your command. Please try again later.")
+            return
         
         
         if interpreted_command == "read email":
@@ -158,8 +149,8 @@ class VoiceDesktopAssistant:
                         # ✅ Check for "stop" or "cancel" (Voice Stop)
                         stop_command = self.get_input()
                         if "stop" in stop_command or "cancel" in stop_command:
-                            self.assistant.speak("Stopping email reading.")
-                            break  # Exit the loop
+                            self.assistant.speak("Stopping email reading. You can give another command.")
+                            return  # ✅ Ends this command cleanly, returns to run loop
                         
                         email_details = self.label_reader.get_email_details(email_id)
                         if email_details:
@@ -180,7 +171,7 @@ class VoiceDesktopAssistant:
 
             self.assistant.speak("What is the subject of the email?")
             subject = self.get_input()
-
+            
             self.assistant.speak("What is the message?")
             message_body = self.get_input()
 
@@ -269,12 +260,13 @@ class VoiceDesktopAssistant:
         self.assistant.speak("Hello! Say 'Hey Assistant' or press Enter to start.")
 
         while self.running:
-            wake_word = input("Press Enter to start or say 'Hey Assistant': ")
-            if wake_word.lower() == "hey assistant" or wake_word == "":
-                self.assistant.speak("How can I assist you?")
-                command = self.get_input()
-                self.process_command(command)
-        
+            wake_word = input("Press Enter to start or say 'Hey Assistant': ").strip().lower()
+            if wake_word in ["", "hey assistant"]:
+                while self.running:
+                    self.assistant.speak("How can I assist you?")
+                    command = self.get_input()
+                    self.process_command(command)
+
         print("✅ Assistant has stopped.")
 
 if __name__ == "__main__":
