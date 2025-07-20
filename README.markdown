@@ -35,8 +35,8 @@ Follow these steps to set up and run VoiceSync Gmail Assistant on your computer.
 ### Installation
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/yourusername/voicesync-gmail-assistant.git
-   cd voicesync-gmail-assistant
+   git clone https://github.com/yourusername/Gmail-Voice-Extension.git
+   cd Gmail-Voice-Extension
    ```
 
 2. **Install Dependencies**:
@@ -154,4 +154,4 @@ Please ensure your code follows the project’s style (PEP 8) and includes error
 - Built with inspiration from voice assistant and email automation projects.
 - Thanks to Google Gmail API, spaCy, and CustomTkinter communities for their robust tools.
 
-For issues or suggestions, open a GitHub issue or contact [your email or GitHub profile].
+For issues or suggestions, open a GitHub issue or contact me.
