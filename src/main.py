@@ -30,29 +30,33 @@ class VoiceDesktopAssistant:
         self.nlp = spacy.load("en_core_web_sm")  # ✅ Load spaCy NLP model
 
 
-    def get_input(self):
-        """Get input from either voice or keyboard with proper fallback handling."""
+    def get_input(self, retries=3):
+    # """Get input from either voice or keyboard with retry limit."""
+        if retries <= 0:
+            self.assistant.speak("Input failed after retries. Please try again later.")
+            return None  # Exit if retries are exhausted
+    
         self.assistant.speak("You can speak or type your command.")
         print("🎤 Speak now or type below:")
-
+    
         input_event = threading.Event()
         input_command = [None]
-
+    
         def keyboard_listener():
             input_command[0] = input("⌨️ Type your command: ").strip().lower()
             input_event.set()
-
+    
         keyboard_thread = threading.Thread(target=keyboard_listener, daemon=True)
         keyboard_thread.start()
-
+        
         voice_command = self.assistant.listen().strip().lower()
-
+        
         if voice_command:
             input_event.set()
             return voice_command
-
+        
         input_event.wait(timeout=5)
-        return input_command[0] if input_command[0] else self.get_input()
+        return input_command[0] if input_command[0] else self.get_input(retries - 1)
 
 
 
@@ -113,6 +117,7 @@ class VoiceDesktopAssistant:
         
         if interpreted_command == "read email":
             self.assistant.speak("Which label do you want to check? Say a label name clearly, or say 'exit'.")
+            print("Which label do you want to check? Say a label name clearly, or say 'exit'")
             label_number = self.get_input()
             
             LABELS = {
@@ -167,18 +172,22 @@ class VoiceDesktopAssistant:
         
         elif interpreted_command == "send email":
             self.assistant.speak("Who do you want to send the email to?")
+            print("Who do you want to send the email to")
             to_email = self.get_input()
 
             self.assistant.speak("What is the subject of the email?")
+            print("What is the subject of the email?")
             subject = self.get_input()
             
             self.assistant.speak("What is the message?")
+            print("What is the message?")
             message_body = self.get_input()
 
             self.email_sender.send_gmail_email(to_email, subject, message_body)
         
         elif interpreted_command == "delete email":
             self.assistant.speak("Do you want to move it to trash or delete permanently?")
+            print("Do you want to move it to trash or delete permanently")
             choice = self.get_input()
             if "permanent" in choice:
                 self.assistant.speak("What email do you want to delete? Say the subject, sender, or keywords.")
@@ -194,6 +203,7 @@ class VoiceDesktopAssistant:
 
         elif interpreted_command in ["archive email", "move mail"]:
             self.assistant.speak("Which label do you want to move an email to? Say a number between one and fourteen.")
+            print("Which label do you want to move an email to? Say a number between one and fourteen.")
             label_number = self.get_input()
 
             LABELS = {
@@ -250,21 +260,24 @@ class VoiceDesktopAssistant:
         
         elif interpreted_command == "exit":
             self.assistant.speak("Stopping assistant.")
+            print("Stopping assistant.")
             self.running = False
         
         else:
             self.assistant.speak("I didn't understand. Please try again.")
     
     def run(self):
-        """Main loop for wake word and command processing."""
+    # """Main loop for wake word and command processing."""
         self.assistant.speak("Hello! Say 'Hey Assistant' or press Enter to start.")
-
         while self.running:
             wake_word = input("Press Enter to start or say 'Hey Assistant': ").strip().lower()
             if wake_word in ["", "hey assistant"]:
-                while self.running:
-                    self.assistant.speak("How can I assist you?")
-                    command = self.get_input()
+                self.assistant.speak("How can I assist you?")
+                command = self.get_input()
+                if command and "back" in command.lower():  # Allow returning to wake word
+                    self.assistant.speak("Returning to wake mode.")
+                    continue
+                if command:
                     self.process_command(command)
 
         print("✅ Assistant has stopped.")

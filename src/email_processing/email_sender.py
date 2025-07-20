@@ -28,16 +28,14 @@ class GmailHelper:
         return text
 
     def send_gmail_email(self, to_email, subject, message_body):
-        """Sends an email via Gmail API."""
-        # ✅ Fix email format
-        to_email = to_email.replace(" at ", "@")  # Convert 'at' to '@'
-        to_email = to_email.replace(" ", "")  # Remove spaces
+        to_email = to_email.replace(" at ", "@").replace(" ", "").strip()
         if "@" not in to_email:
-                to_email += "@gmail.com"  # Default to Gmail
-
+            to_email += "@gmail.com"  # Default to Gmail
         try:
-            if "@gmail.com" not in to_email:
-                to_email += "@gmail.com"
+            formatted_body = self.format_email_body(message_body)
+            message = MIMEText(formatted_body, "html")
+            message["to"] = to_email
+            message["subject"] = subject
 
             formatted_body = self.format_email_body(message_body)
             message = MIMEText(formatted_body, "html")

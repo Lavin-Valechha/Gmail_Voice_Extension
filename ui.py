@@ -7,6 +7,20 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+# Add this helper class for terminal output redirection
+class TextRedirector(object):
+    def __init__(self, widget):
+        self.widget = widget
+        
+    def write(self, text):
+        self.widget.configure(state="normal")
+        self.widget.insert("end", text)
+        self.widget.see("end")
+        self.widget.configure(state="disabled")
+    
+    def flush(self):
+        pass
+
 # Ensure the src path is added to import the assistant
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "src")))
 
@@ -25,12 +39,13 @@ class AssistantApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Gmail Voice Assistant")
-        self.root.geometry("900x800")
+        self.root.geometry("900x850")
 
         self.assistant = None
         self.running = False
 
         self.build_ui()
+        sys.stdout = TextRedirector(self.terminal_box)
         self.safe_initialize_assistant()
 
     def build_ui(self):
@@ -51,6 +66,10 @@ class AssistantApp:
         self.transcript_box.insert("1.0", "...")
         self.transcript_box.configure(state="disabled")
         self.transcript_box.pack(pady=10, padx=20, fill="x")
+        # Terminal Output Box
+        self.terminal_box = ctk.CTkTextbox(self.root, height=100, font=("Consolas", 10))
+        self.terminal_box.pack(pady=5, padx=20, fill="x")
+        self.terminal_box.configure(state="disabled")
 
         self.log_box = ctk.CTkTextbox(self.root, height=200, font=("Courier", 12))
         self.log_box.insert("1.0", "System Ready. Waiting for interaction.\n")
@@ -85,6 +104,32 @@ class AssistantApp:
                 self.log(f"❌ Assistant crashed on init: {e}")
                 messagebox.showerror("Initialization Error", f"Failed to start assistant:\n{e}")
 
+    def get_real_email_counts(self):
+        """Fetch actual email counts from Gmail labels"""
+        if not self.assistant:
+            return {}
+        
+        labels = {
+            "INBOX": "Inbox",
+            "CATEGORY_PROMOTIONS": "Promotions",
+            "CATEGORY_SOCIAL": "Social",
+            "CATEGORY_UPDATES": "Updates",
+            "TRASH": "Trash",
+            "SPAM": "Spam"
+        }
+        
+        counts = {}
+        try:
+            for label_id, label_name in labels.items():
+                # Get count using your existing email reader
+                emails = self.assistant.label_reader.fetch_label_emails(label_id)
+                counts[label_name] = len(emails) if emails else 0
+        except Exception as e:
+            print(f"Error fetching email counts: {e}")
+            return {}
+        
+        return counts
+
     def toggle_theme(self):
         mode = "Dark" if self.theme_switch.get() else "Light"
         ctk.set_appearance_mode(mode)
@@ -111,13 +156,13 @@ class AssistantApp:
             try:
                 command = self.assistant.get_input()
                 if command:
-                    self.update_transcript(command)
-                    self.command_label.configure(text=f"🧠 Last Command: {command}")
-                    self.log(f"🗣 {command}")
+                    self.root.after(0, self.update_transcript, command)
+                    self.root.after(0, self.command_label.configure, text=f"🧠 Last Command: {command}")
+                    self.root.after(0, self.log, f"🗣 {command}")
                     self.assistant.process_command(command)
             except Exception as e:
-                self.log(f"⚠️ Error during command processing: {e}")
-                self.update_status("⚠️ Error")
+                self.root.after(0, self.log, f"⚠️ Error during command processing: {e}")
+                self.root.after(0, self.update_status, "⚠️ Error")
                 break
 
     def update_status(self, status):
@@ -136,23 +181,48 @@ class AssistantApp:
         self.log_box.configure(state="disabled")
 
     def show_graph(self):
-        import random
-        labels = ["Inbox", "Sent", "Spam", "Trash", "Important"]
-        counts = [random.randint(1, 20) for _ in labels]
-
+        """Show real email count graph"""
+        if not self.assistant:
+            messagebox.showerror("Error", "Assistant not initialized")
+            return
+        
+        # Get real data instead of random
+        email_counts = self.get_real_email_counts()
+        
+        if not email_counts:
+            messagebox.showerror("Error", "Could not fetch email data")
+            return
+        
+        # Prepare data for plotting
+        labels = list(email_counts.keys())
+        counts = list(email_counts.values())
+        
+        # Create the figure
         fig, ax = plt.subplots()
-        ax.bar(labels, counts, color="#3b82f6")
-        ax.set_title("Email Count by Label")
-        ax.set_ylabel("Emails")
+        bars = ax.bar(labels, counts, color='#3b82f6')
+        
+        # Add count labels on each bar
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{int(height)}',
+                    ha='center', va='bottom')
+        
+        ax.set_title("Real-Time Email Count by Label")
+        ax.set_ylabel("Number of Emails")
+        plt.xticks(rotation=45)
         fig.tight_layout()
-
+        
+        # Display in Tkinter window
         graph_win = ctk.CTkToplevel(self.root)
-        graph_win.geometry("600x400")
-        graph_win.title("Email Stats")
-
+        graph_win.geometry("800x500")
+        graph_win.title("Email Statistics")
+        
         chart = FigureCanvasTkAgg(fig, graph_win)
         chart.get_tk_widget().pack(fill="both", expand=True)
         chart.draw()
+
+
 
 if __name__ == "__main__":
     root = ctk.CTk()
