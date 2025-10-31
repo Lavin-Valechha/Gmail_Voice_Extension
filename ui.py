@@ -33,7 +33,8 @@ else:
     startup_error = None
 
 ctk.set_appearance_mode("System")
-ctk.set_default_color_theme("blue")
+ctk.set_default_color_theme("dark-grey")
+
 
 class AssistantApp:
     def __init__(self, root):
